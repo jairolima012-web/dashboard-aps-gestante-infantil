@@ -37,6 +37,27 @@ else:
     lista_indicadores = todos_ind_nomes[5:]
     df_cvat = df_class.iloc[6:8].copy()
 
+# --- 5. SEÇÃO: MONITORAMENTO DE INDICADORES (ARQUIVO 1) ---
+
+st.header("2. Detalhamento dos Indicadores")
+selecionado = st.selectbox("Selecione o Indicador para análise detalhada:", lista_indicadores)
+
+col_graf_ind, col_tab_ind = st.columns([4, 1])
+
+with col_graf_ind:
+    fig_linha = px.line(
+        df_ind, x="Mês", y=selecionado, 
+        markers=True, text=selecionado,
+        title=f"Evolução: {selecionado}"
+    )
+    fig_linha.update_traces(textposition="top center")
+    fig_linha.update_layout(margin=dict(t=80, b=40, l=40, r=40))
+    st.plotly_chart(fig_linha, use_container_width=True, key="linha_ind")
+
+with col_tab_ind:
+    st.write("### Dados")
+    st.dataframe(df_ind[["Mês", selecionado]], hide_index=True, use_container_width=True)
+
 # Ajuste fino na tabela de classificação
 df_cvat.columns = df_class.iloc[0].values
 df_cvat.rename(columns={df_cvat.columns[0]: "Status"}, inplace=True)
@@ -74,27 +95,6 @@ with col_barra_cvat:
     st.plotly_chart(fig_barra_cvat, use_container_width=True, key="barra_cvat")
 
 st.divider()
-
-# --- 5. SEÇÃO: MONITORAMENTO DE INDICADORES (ARQUIVO 1) ---
-
-st.header("2. Detalhamento dos Indicadores")
-selecionado = st.selectbox("Selecione o Indicador para análise detalhada:", lista_indicadores)
-
-col_graf_ind, col_tab_ind = st.columns([4, 1])
-
-with col_graf_ind:
-    fig_linha = px.line(
-        df_ind, x="Mês", y=selecionado, 
-        markers=True, text=selecionado,
-        title=f"Evolução: {selecionado}"
-    )
-    fig_linha.update_traces(textposition="top center")
-    fig_linha.update_layout(margin=dict(t=80, b=40, l=40, r=40))
-    st.plotly_chart(fig_linha, use_container_width=True, key="linha_ind")
-
-with col_tab_ind:
-    st.write("### Dados")
-    st.dataframe(df_ind[["Mês", selecionado]], hide_index=True, use_container_width=True)
 
 # Gráfico de barras de indicadores (opcional, no final)
 fig_barra_ind = px.bar(df_ind, x="Mês", y=selecionado, title="Comparativo Mensal", color_discrete_sequence=['#636EFA'])
