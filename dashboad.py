@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import textwrap
 
 st.set_page_config(layout="wide", page_title="Dashboard APS Integrado")
 
-# --- 1. CARREGAMENTO DOS DADOS ---
+# --- CARREGAMENTO DOS DADOS ---
 
 @st.cache_data # Cache para carregar mais rápido
 def carregar_dados():
@@ -19,59 +20,129 @@ def carregar_dados():
 
 df_ind, df_class = carregar_dados()
 
-# --- 2. SIDEBAR / FILTROS ---
+# --- SIDEBAR / FILTROS ---
 
 st.sidebar.header("Configurações Gerais")
 grupo = st.sidebar.radio("Selecione o Grupo de Análise:", ["Infantil", "Gestação e Puerpério"])
 
-# --- 3. LÓGICA DE FILTRAGEM POR GRUPO ---
+# --- LÓGICA DE FILTRAGEM POR GRUPO ---
 
 todos_ind_nomes = df_ind.columns[1:].tolist()
 
 if grupo == "Infantil":
-    # Indicadores: Colunas 1 a 5 | Classificação: Linhas 1 e 2
     lista_indicadores = todos_ind_nomes[0:5]
     df_cvat = df_class.iloc[1:3].copy()
 else:
-    # Indicadores: Colunas 6 em diante | Classificação: Linhas 6 e 7
     lista_indicadores = todos_ind_nomes[5:]
     df_cvat = df_class.iloc[6:8].copy()
 
-# --- 5. SEÇÃO: MONITORAMENTO DE INDICADORES (ARQUIVO 1) ---
-
-st.header("2. Detalhamento dos Indicadores")
+st.header(f"📊 1. Detalhamento dos Indicadores")
 selecionado = st.selectbox("Selecione o Indicador para análise detalhada:", lista_indicadores)
 
-col_graf_ind, col_tab_ind = st.columns([4, 1])
+# --- INDICADORES tabela e gráfico
+
+col_tab_ind, col_graf_ind = st.columns([2, 6])
+
+with col_tab_ind:
+    st.write("### Dados")
+
+    meio = len(selecionado) // 2
+    try:
+        espaco_proximo = selecionado.find(" ", meio)
+        if espaco_proximo == -1:
+            espaco_proximo = selecionado.rfind(" ", 0, meio)
+            
+        if espaco_proximo != -1:
+            coluna_visual = selecionado[:espaco_proximo] + "  \n" + selecionado[espaco_proximo+1:]
+        else:
+            coluna_visual = selecionado
+    except:
+        coluna_visual = selecionado
+
+    st.dataframe(
+        df_ind[["Mês", selecionado]],
+        hide_index=True, 
+        use_container_width=True,
+        column_config={
+            selecionado: st.column_config.Column(
+                label=coluna_visual,
+                width="large",
+                help=f"Indicador completo: {selecionado}"
+            ),
+            "Mês": st.column_config.Column(width="small")
+        }       
+    )
 
 with col_graf_ind:
+
+    eixo_y = "<br>".join(textwrap.wrap(selecionado, width=50)) 
+    
     fig_linha = px.line(
         df_ind, x="Mês", y=selecionado, 
         markers=True, text=selecionado,
         title=f"Evolução: {selecionado}"
     )
+    
     fig_linha.update_traces(textposition="top center")
-    fig_linha.update_layout(margin=dict(t=80, b=40, l=40, r=40))
+
+    fig_linha.update_layout(
+        title={
+            'text': f"Evolução: {selecionado}",
+            'y': 0.9,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        yaxis_title=eixo_y,
+        margin=dict(t=80, b=40, l=150, r=40)
+    )
+
     st.plotly_chart(fig_linha, use_container_width=True, key="linha_ind")
 
-with col_tab_ind:
-    st.write("### Dados")
-    st.dataframe(df_ind[["Mês", selecionado]], hide_index=True, use_container_width=True)
+# Gráfico de barras de indicadores
+with col_graf_ind:
+
+    eixo_y_barras = "<br>".join(textwrap.wrap(selecionado, width=50)) 
+    
+    # gráfico de barras
+    fig_barra = px.bar(
+        df_ind, 
+        x="Mês", 
+        y=selecionado, 
+        text=selecionado,
+        title=f"Evolução (Barras): {selecionado}"
+    )
+    
+    fig_barra.update_traces(textposition="outside")
+
+    fig_barra.update_layout(
+        title={
+            'text': f"Evolução: {selecionado}",
+            'y': 0.9,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        yaxis_title=eixo_y_barras,
+        margin=dict(t=80, b=40, l=50, r=40),
+        xaxis_title="Mês"
+    )
+
+    # Exibe o gráfico
+    st.plotly_chart(fig_barra, use_container_width=True, key="barra_ind")
 
 # Ajuste fino na tabela de classificação
 df_cvat.columns = df_class.iloc[0].values
 df_cvat.rename(columns={df_cvat.columns[0]: "Status"}, inplace=True)
 meses_colunas = df_cvat.columns[1:13]
 
-# --- 4. SEÇÃO: CLASSIFICAÇÃO CVAT (ARQUIVO 2) ---
+# CLASSIFICAÇÃO CVAT (ARQUIVO 2) ---
 
-st.title(f"📊 Dashboard APS - {grupo}")
-st.header("1. Classificação CVAT")
+st.title(f"📊 2. Classificação CVAT")
 
 col_pizza, col_barra_cvat = st.columns([1, 2])
 
 with col_pizza:
-    # Cálculo do Total para a Pizza
     df_cvat['Total'] = df_cvat[meses_colunas].apply(pd.to_numeric, errors='coerce').sum(axis=1)
     fig_pizza = px.pie(
         df_cvat, values='Total', names='Status', 
@@ -83,7 +154,6 @@ with col_pizza:
     st.plotly_chart(fig_pizza, use_container_width=True, key="pizza_cvat")
 
 with col_barra_cvat:
-    # Transformar para formato longo para o gráfico de barras
     df_melted = df_cvat.melt(id_vars=["Status"], value_vars=meses_colunas, var_name="Mês", value_name="Quantidade")
     fig_barra_cvat = px.bar(
         df_melted, x="Mês", y="Quantidade", color="Status",
@@ -95,7 +165,3 @@ with col_barra_cvat:
     st.plotly_chart(fig_barra_cvat, use_container_width=True, key="barra_cvat")
 
 st.divider()
-
-# Gráfico de barras de indicadores (opcional, no final)
-fig_barra_ind = px.bar(df_ind, x="Mês", y=selecionado, title="Comparativo Mensal", color_discrete_sequence=['#636EFA'])
-st.plotly_chart(fig_barra_ind, use_container_width=True, key="barra_ind_final")
